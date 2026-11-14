@@ -7,6 +7,11 @@ __pycache__/
 *.wad.client
 *.fantome
 
-# saídas e testes gerados
+# saídas e testes gerados (têm texturas extraídas)
 Skin Custom/
 teste_paletas/
+texturas/
+texturas_nomeadas/
+testes_cor/
+teste_tex/
+build/
