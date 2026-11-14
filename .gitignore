@@ -1,0 +1,12 @@
+# ambiente virtual e cache do Python
+.venv/
+__pycache__/
+*.pyc
+
+# arquivos do jogo e skins (NÃO subir: são da Riot ou de outros autores)
+*.wad.client
+*.fantome
+
+# saídas e testes gerados
+Skin Custom/
+teste_paletas/

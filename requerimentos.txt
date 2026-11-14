@@ -1,0 +1,4 @@
+zstandard
+xxhash
+pillow>=11.2
+numpy
