@@ -25,6 +25,9 @@ from skin import arquivos_da_skin, referencias, hash_caminho
 # Por padrão fica ao lado deste script; troque o nome/caminho se preferir.
 PASTA_SAIDA = Path(__file__).parent / "Skin Custom"
 
+class ErroConversao(Exception):
+    """Problema que impede a conversão (arquivo errado, cor inválida...)."""
+
 # ---------------------------------------------------------------- parâmetros
 
 def ler_parametros():
@@ -48,7 +51,7 @@ def ler_parametros():
 
 # ---------------------------------------------------------------- carregar a entrada
 
-def carregar_fantome(caminho):
+def carregar_fantome(caminho, log=print):
     """Todos os WADs do .fantome; todos os arquivos são processados."""
     z = zipfile.ZipFile(caminho)
     fontes = {}
@@ -63,93 +66,107 @@ def carregar_fantome(caminho):
                         nomes[hash_caminho(c)] = c
             fontes[nome] = {"wad": wad, "selecao": set(wad.hashes()), "nomes": nomes}
     if not fontes:
-        sys.exit("nenhum .wad.client dentro do .fantome")
+        raise ErroConversao("nenhum .wad.client dentro do .fantome")
     return z, fontes
 
-def carregar_wad_do_jogo(caminho, numero):
+def carregar_wad_do_jogo(caminho, numero, log=print):
     """O WAD do campeão; só os arquivos da skin escolhida são processados."""
     campeao = caminho.name.split(".")[0]
-    print(f"abrindo {caminho.name} (campeão: {campeao}) e procurando a skin {numero}...")
+    log(f"abrindo {caminho.name} (campeão: {campeao}) e procurando a skin {numero}...")
     wad = Wad(caminho.read_bytes())
     info = arquivos_da_skin(wad, campeao, numero)
     if not info["raizes"]:
-        sys.exit(f"skin {numero} não encontrada neste WAD "
-                 f"(procurei data/characters/<personagem>/skins/skin{numero}.bin)")
-    print("  definições encontradas:", ", ".join(info["raizes"]))
-    print(f"  arquivos ligados à skin: {len(info['hashes'])}")
+        raise ErroConversao(f"skin {numero} não encontrada neste WAD "
+                            f"(procurei data/characters/<personagem>/skins/skin{numero}.bin)")
+    log("  definições encontradas: " + ", ".join(info["raizes"]))
+    log(f"  arquivos ligados à skin: {len(info['hashes'])}")
     if info["compartilhados"]:
-        print(f"  aviso: {info['compartilhados']} texturas ficam fora da pasta da skin "
+        log(f"  aviso: {info['compartilhados']} texturas ficam fora da pasta da skin "
               f"(compartilhadas); recolorir pode afetar outras skins também")
     fontes = {f"WAD/{caminho.name}": {"wad": wad, "selecao": info["hashes"], "nomes": info["nomes"]}}
     return campeao, fontes
 
 # ---------------------------------------------------------------- principal
 
-def main():
-    args = ler_parametros()
+def converter(entrada, cor, skin=0, nome=None, autor="custom", saida=None,
+              variacao=PADRAO["variacao"], reforco=PADRAO["reforco_saturacao"],
+              saturacao_minima=PADRAO["saturacao_minima"], origem_de=None, origem_ate=None,
+              log=print):
+    """
+    Faz a conversão inteira. Usado pelo terminal (main) e pela interface.
+    Devolve {"saida": Path, "problemas": [...], "amostra": (antes, depois) ou None}.
+    'log' é a função que recebe as mensagens de progresso (print no terminal).
+    """
     try:
-        ler_cor(args.cor)
+        ler_cor(cor)
     except ValueError as erro:
-        sys.exit(str(erro))
-    entrada = Path(args.entrada)
+        raise ErroConversao(str(erro))
+    entrada = Path(entrada)
     if not entrada.exists():
-        sys.exit(f"arquivo não encontrado: {entrada}")
+        raise ErroConversao(f"arquivo não encontrado: {entrada}")
 
     nome_arquivo = entrada.name.lower()
     if nome_arquivo.endswith((".fantome", ".zip")):
         modo_jogo = False
-        z, fontes = carregar_fantome(entrada)
+        log(f"abrindo {entrada.name}...")
+        z, fontes = carregar_fantome(entrada, log)
     elif nome_arquivo.endswith(".wad.client"):
         modo_jogo = True
-        campeao, fontes = carregar_wad_do_jogo(entrada, args.skin)
+        campeao, fontes = carregar_wad_do_jogo(entrada, skin, log)
     else:
-        sys.exit("entrada precisa ser .fantome ou .wad.client")
+        raise ErroConversao("entrada precisa ser .fantome ou .wad.client")
 
     # 1) ler as texturas selecionadas (servem pra detectar a cor e pra recolorir)
-    relatorio = {nome: Counter() for nome in fontes}
+    log("lendo texturas...")
+    relatorio = {n: Counter() for n in fontes}
     problemas = []
     imagens = {}
-    for nome, f in fontes.items():
+    for n, f in fontes.items():
         wad = f["wad"]
-        relatorio[nome].update(NOMES_TIPO.get(tipo(wad.por_hash[h]), "?") for h in f["selecao"])
+        relatorio[n].update(NOMES_TIPO.get(tipo(wad.por_hash[h]), "?") for h in f["selecao"])
         for h in f["selecao"]:
             dados = wad.get(h)
             if dados is not None and eh_textura(dados):
                 try:
-                    imagens[(nome, h)] = ler_textura(dados)
+                    imagens[(n, h)] = ler_textura(dados)
                 except FormatoNaoSuportado as erro:
                     problemas.append(f"{f['nomes'].get(h, f'{h:016x}')}: {erro} (mantida original)")
     if not imagens:
-        sys.exit("nenhuma textura legível encontrada")
+        raise ErroConversao("nenhuma textura legível encontrada")
 
     # 2) decidir quais cores serão trocadas
-    if args.origem_de is not None and args.origem_ate is not None:
-        de, ate = args.origem_de, args.origem_ate
-        print(f"faixa de origem informada: {de:.0f}° a {ate:.0f}°")
+    if origem_de is not None and origem_ate is not None:
+        de, ate = origem_de, origem_ate
+        log(f"faixa de origem informada: {de:.0f}° a {ate:.0f}°")
     else:
         de, ate, pico = detectar_faixa(imagens.values())
-        print(f"cor principal detectada: {pico}°  ->  faixa trocada: {de}° a {ate}°")
+        log(f"cor principal detectada: {pico}°  ->  faixa trocada: {de}° a {ate}°")
 
-    cfg = criar_paleta(args.cor, de, ate, variacao=args.variacao,
-                       reforco_saturacao=args.reforco, saturacao_minima=args.saturacao_minima)
+    cfg = criar_paleta(cor, de, ate, variacao=variacao,
+                       reforco_saturacao=reforco, saturacao_minima=saturacao_minima)
 
     # 3) recolorir
+    log("recolorindo...")
     novos_wads = {}
-    for nome, f in fontes.items():
-        wad, alterados, r = f["wad"], {}, relatorio[nome]
+    amostra, melhor = None, 0
+    for n, f in fontes.items():
+        wad, alterados, r = f["wad"], {}, relatorio[n]
         for h in f["selecao"]:
             dados = wad.get(h)
             if dados is None:
                 continue
             rotulo = f["nomes"].get(h, f"{h:016x}")
             try:
-                if (nome, h) in imagens:
-                    nova, trocados = aplicar_imagem(imagens[(nome, h)], cfg)
+                if (n, h) in imagens:
+                    antes = imagens[(n, h)]
+                    nova, trocados = aplicar_imagem(antes, cfg)
                     if trocados == 0:
                         r["texturas sem a cor (mantidas)"] += 1
                         continue
                     alterados[h] = gravar_textura(nova, dados)
                     r["texturas recoloridas"] += 1
+                    if trocados > melhor:              # guarda a textura que mais mudou, pra prévia
+                        amostra, melhor = (antes, nova), trocados
                 elif dados[:4] == b"PROP":
                     novo, cores, params = recolorir_bin(dados, cfg)
                     r[".bin lidos"] += 1
@@ -161,18 +178,18 @@ def main():
                     problemas.append(f"{rotulo}: .bin de patch (PTCH) ainda não suportado (mantido original)")
             except Exception as erro:
                 problemas.append(f"{rotulo}: {type(erro).__name__}: {erro} (mantido original)")
-        novos_wads[nome] = escrever_wad(wad.cabecalho, wad.entradas, alterados, so_alterados=modo_jogo)
+        novos_wads[n] = escrever_wad(wad.cabecalho, wad.entradas, alterados, so_alterados=modo_jogo)
         r["arquivos alterados"] = len(alterados)
         if not alterados:
-            problemas.append(f"{nome}: nada foi alterado (a cor escolhida não encontrou o que trocar?)")
+            problemas.append(f"{n}: nada foi alterado (a cor escolhida não encontrou o que trocar?)")
 
     # 4) META
     if modo_jogo:
         info = {
-            "Name": args.nome or f"{campeao} skin {args.skin} ({args.cor})",
-            "Author": args.autor,
+            "Name": nome or f"{campeao} skin {skin} ({cor})",
+            "Author": autor,
             "Version": "1.0",
-            "Description": f"Recolor ({args.cor}) da skin {args.skin} de {campeao}. Uso pessoal.",
+            "Description": f"Recolor ({cor}) da skin {skin} de {campeao}. Uso pessoal.",
         }
     else:
         info = {}
@@ -180,24 +197,25 @@ def main():
             info = json.loads(z.read("META/info.json").decode("utf-8-sig"))
         nome_original = info.get("Name", entrada.stem)
         autor_original = info.get("Author", "desconhecido")
-        info["Name"] = args.nome or f"{nome_original} ({args.cor})"
-        info["Description"] = (f"Recolor ({args.cor}) de '{nome_original}' por {autor_original}. "
+        info["Name"] = nome or f"{nome_original} ({cor})"
+        info["Description"] = (f"Recolor ({cor}) de '{nome_original}' por {autor_original}. "
                                f"Créditos aos autores originais. | Original: {info.get('Description', '')}")
 
-    if args.saida:
-        saida = Path(args.saida)
+    if saida:
+        saida = Path(saida)
     else:
         nome_seguro = re.sub(r'[<>:"/\\|?*]', "-", info["Name"])
         saida = PASTA_SAIDA / f"{nome_seguro}.fantome"
     saida.parent.mkdir(parents=True, exist_ok=True)
     if saida.resolve() == entrada.resolve():
-        sys.exit("a saída não pode ser o próprio arquivo de entrada")
+        raise ErroConversao("a saída não pode ser o próprio arquivo de entrada")
 
     # 5) empacotar
+    log("salvando...")
     with zipfile.ZipFile(saida, "w", zipfile.ZIP_DEFLATED) as out:
         out.writestr("META/info.json", json.dumps(info, indent=2, ensure_ascii=False))
-        for nome, dados in novos_wads.items():
-            out.writestr(nome, dados)
+        for n, dados in novos_wads.items():
+            out.writestr(n, dados)
         if not modo_jogo:
             for item in z.namelist():
                 if item in novos_wads or item == "META/info.json":
@@ -211,15 +229,26 @@ def main():
                     out.writestr(item, z.read(item))
 
     # 6) relatório
-    print()
-    for nome, r in relatorio.items():
-        print(f"=== {nome} ===")
+    log("")
+    for n, r in relatorio.items():
+        log(f"=== {n} ===")
         for chave, valor in r.items():
-            print(f"  {chave}: {valor}")
-    print("\nproblemas:" if problemas else "\nproblemas: nenhum")
+            log(f"  {chave}: {valor}")
+    log("\nproblemas:" if problemas else "\nproblemas: nenhum")
     for p in problemas:
-        print("  -", p)
-    print(f"\npronto: {saida}")
+        log("  - " + p)
+    log(f"\npronto: {saida}")
+    return {"saida": saida, "problemas": problemas, "amostra": amostra}
+
+def main():
+    args = ler_parametros()
+    try:
+        converter(args.entrada, args.cor, skin=args.skin, nome=args.nome, autor=args.autor,
+                  saida=args.saida, variacao=args.variacao, reforco=args.reforco,
+                  saturacao_minima=args.saturacao_minima,
+                  origem_de=args.origem_de, origem_ate=args.origem_ate)
+    except ErroConversao as erro:
+        sys.exit(str(erro))
 
 if __name__ == "__main__":
     main()
