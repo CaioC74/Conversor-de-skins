@@ -7,14 +7,14 @@ Funciona com:
 - skins custom em `.fantome` (feitas pela comunidade)
 - o WAD do próprio jogo (ex.: `Zed.wad.client`), escolhendo a skin pelo número (0 = skin base)
 
-O resultado é um `.fantome` para carregar no CSLoL Manager.
+O resultado é um `.fantome` para carregar no LTK Manager.
 
 ## Instalação
 
 ```
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requerimentos.txt
 ```
 
 ## Uso
@@ -23,6 +23,12 @@ pip install -r requirements.txt
 ```
 python interface.py
 ```
+
+### Navegador (local)
+```
+python app.py
+```
+Abre `http://127.0.0.1:5000` sozinho. Roda só na sua máquina; ninguém de fora acessa.
 
 ### Terminal
 ```
@@ -47,6 +53,7 @@ As skins geradas ficam na pasta `Skin Custom`.
 | `skin.py` | descobre quais arquivos do WAD do jogo pertencem a uma skin |
 | `conversor.py` | junta tudo (terminal) |
 | `interface.py` | janela gráfica (Tkinter) |
+| `app.py` + `templates/index.html` | versão no navegador (Flask, só local) |
 
 ## Riscos e banimento
 
