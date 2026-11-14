@@ -56,3 +56,4 @@ As skins geradas ficam na pasta `Skin Custom`.
   autores (`.fantome`). O `.gitignore` já bloqueia esses arquivos.
 - Ao recolorir uma skin custom de outra pessoa, mantenha os créditos (o conversor
   já preserva o autor original na descrição) e não redistribua sem permissão.
+
