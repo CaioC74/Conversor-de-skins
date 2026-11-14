@@ -48,12 +48,33 @@ As skins geradas ficam na pasta `Skin Custom`.
 | `conversor.py` | junta tudo (terminal) |
 | `interface.py` | janela gráfica (Tkinter) |
 
+## Riscos e banimento
+
+**Use por sua conta e risco.** Os Termos de Serviço da Riot não permitem modificar
+arquivos do jogo, e isso inclui skins custom. Na prática, a Riot já disse que skins
+custom ficam numa zona de "use por sua conta e risco": não costumam render ban, mas
+**não existe garantia**, e já houve relatos de contas punidas.
+
+O que se sabe pelos relatos da comunidade:
+
+| Prática | Risco |
+|---|---|
+| Skin custom (arte nova ou recolor) carregada pelo CSLoL Manager, que só troca arquivos antes do jogo abrir | Baixo, mas não zero |
+| Usar mod para liberar **skins pagas que você não tem** | Alto: é tratado como pirataria e é o que mais dá ban |
+| "Skin changers" que **injetam código na memória** do jogo durante a partida | Alto: o Vanguard (anti-cheat) detecta |
+| Usar qualquer ferramenta de terceiros no **servidor coreano** | Alto: há relatos de ban por qualquer ferramenta |
+| Distribuir ou vender skins modificadas | Aumenta a chance de a conta ser analisada |
+
+Este projeto fica na primeira linha: ele só **recolore skins que você já tem**
+(ou a skin base) e o resultado é carregado pelo CSLoL Manager. As skins só
+aparecem para você; os outros jogadores continuam vendo a skin original.
+
+Para reduzir o risco: mantenha o CSLoL Manager atualizado, use só para skins que
+você possui e, se quiser risco zero, teste numa conta secundária.
+
 ## Avisos
 
-- Mods de skin são contra os Termos de Serviço da Riot e usados por conta e risco.
-  Este projeto só altera a aparência de skins que você já tem; não libera skins pagas.
 - Não suba para o repositório arquivos do jogo (`.wad.client`) nem skins de outros
   autores (`.fantome`). O `.gitignore` já bloqueia esses arquivos.
 - Ao recolorir uma skin custom de outra pessoa, mantenha os créditos (o conversor
   já preserva o autor original na descrição) e não redistribua sem permissão.
-
